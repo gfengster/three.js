@@ -35,10 +35,11 @@ constructor: THREE.VTKLoader,
 parse: function(data) {
 	       var idx, pattern, reg_index, result;
 	       var line = 0, n_points = 0, n_polys = 0; n_dpp = 0;
-	       var colors;
+	       var colors, point_type;
 	       var geometry = new THREE.Geometry();
 	       /*
-		* expects to find a legacy format vtk file, such as:
+		* Expects to find a legacy format vtk file, such as:
+		*
 		* # vtk DataFile Version 1.0
 		* Some comment text
 		* ASCII
@@ -53,6 +54,12 @@ parse: function(data) {
 		* 3 0 1 3
 		* 3 1 2 3
 		* 3 2 0 3
+		* POINT_DATA 4
+		* SCALARS name char
+		* LOOKUP_TABLE default
+		*
+		* Here both the POLYGONS and POINT_DATA sections
+		* are optional.
 		*/
 	       // # vtk DataFile Version <uint>.<uint>
 	       pattern = /#[\s]+vtk[\s]+DataFile[\s]+Version[\s]+\d+\.\d+/gi;
@@ -154,6 +161,61 @@ parse: function(data) {
 								       parseInt(result[3]),
 								       parseInt(result[4])));
 				       }
+			       }
+		       }
+		       else {
+			       // POINT_DATA <uint>
+			       ++line;
+			       pattern = /(POINT_DATA)[\s]+([1-9]+[\d]*)/g;
+			       if((result = pattern.exec(data)) !== null) {
+				       if((result[1] === 'POINT_DATA') && (Number(result[2]) == n_points)) {
+					       // SCALARS name <type>
+					       ++line;
+					       var reg_index = pattern.lastIndex;
+					       pattern = /(SCALARS)[\s]+([\S]+)[\s]+([\S]+)/g;
+					       pattern.lastIndex = reg_index;
+					       if(((result = pattern.exec(data)) === null) ||
+					          (result[1] !== 'SCALARS') ||
+						  ((result[3] !== 'char') && (result[3] !== 'float'))) {
+						       result = null;
+					       } else {
+						       point_type = (result[3] === 'char')? 'C': 'F';
+						       // LOOKUP_TABLE default
+						       pattern = /(LOOKUP_TABLE)[\s]+(default)/g;
+					       	       pattern.lastIndex = reg_index;
+						       if(((result = pattern.exec(data)) === null) ||
+						          (result[1] !== 'LOOKUP_TABLE') ||
+							  (result[2] !== 'default')) {
+						         result = null;
+						       } else {
+							       // <uint>|<float>
+							       pattern = /([+-]?[\d]+[.]?[\d\+\-eE]*)/g;
+							       pattern.lastIndex = reg_index;
+						               for(idx = 0; idx < n_points; ++idx) {
+							               ++line;
+								       if((result = pattern.exec(data)) === null) {
+								               break;
+								       } else {
+									       var a = (point_type === 'C')?
+									               parseInt(result[1]) / 255.0:
+									               parseFloat(result[1]);
+									       if(a < 0.0) {
+									               a = 0.0;
+									       } else if(a > 1.0) {
+									               a = 1.0;
+									       }
+									       geometry.colors.push(new THREE.Color(a, a, a));
+								       }
+							       }
+							       geometry.colorsNeedUpdate = true;
+						       }
+					       }
+				       } else {
+					 result = null;
+				       }
+
+			       } else {
+				       result = true; // Allow points with no point data
 			       }
 		       }
 	       }
