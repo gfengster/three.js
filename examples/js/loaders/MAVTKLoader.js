@@ -24,7 +24,9 @@ constructor: THREE.VTKLoader,
 	     load: function(url, onLoad, onProgress, onError) {
 		     var scope = this;
 		     var loader = new THREE.XHRLoader(scope.manager);
-		     loader.setCrossOrigin(this.crossOrigin);
+		     if(loader.crossOrigin !== undefined) {
+		       loader.setCrossOrigin(this.crossOrigin);
+		     }
 		     var req = loader.load(url,
 		                     function (text) {
 				     onLoad(scope.parse(text));
